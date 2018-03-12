@@ -35,23 +35,14 @@ To build the two executables, all that is necessary is to run the command “mak
 
 
 Client1 will do the following:
-
 check the the number of items is correctly 0 on start.
-
 add 1 tuple, show that the method on the server side returned that it was a success.
-
 check the new total number of elements stored( which will be 1)
-
 It then adds another tuple. 
-
 check the new total number of elements stored( which will be 2)
-
 It deletes 1 tuple 
-
 check the new total number of elements stored( which will be 1)
-
 Then it will init()
-
 And show server side has been reset and totalnum is at 0 again.
 
 
@@ -59,11 +50,8 @@ And show server side has been reset and totalnum is at 0 again.
 
 
 Client2 will do the following: 
-
 Will add 2 tuples. 
-
 Will get 1 tuple and print it out.
-
 Will change a tuple and print it out.
 
 
