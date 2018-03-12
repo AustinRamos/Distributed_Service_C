@@ -1,0 +1,144 @@
+#include "message.h"
+#include <mqueue.h>
+#include <string.h>
+#include <pthread.h>
+#include <fcntl.h> /* flags */
+#include <sys/stat.h> /* modes */
+#include <stdio.h>
+
+
+/*
+ * cc -c first.c
+
+that would produce an object file you may need to add to the library.
+
+then create an executable using the following command
+
+cc -o first first.c
+ * */
+
+// gcc -g -Wall -pthread -o server server.c -lrt
+
+//globals:
+/* mutex and condition variables for the message copy */
+pthread_mutex_t mutex_msg;
+int msg_not_copied = 1; /* TRUE = 1 */
+pthread_cond_t cond_msg;
+
+//thread function 
+void process_message(struct request *msg){
+ struct request msg_local; /* local message */
+ mqd_t q_client; /* client queue */
+int result;
+/* thread copies message to local message*/
+pthread_mutex_lock(&mutex_msg);
+memcpy((char *) &msg_local, (char *)&msg, sizeof( struct request) );
+/* wake up server */
+msg_not_copied = 0; /* FALSE = 0 */
+pthread_cond_signal(&cond_msg);
+pthread_mutex_unlock(&mutex_msg);
+
+/* execute client request and prepare reply */
+//result = msg_local.a + msg_local.b;  FROm example, not relevant here
+/* return result to client by sending it to queue */
+
+//strcat(char *dest, const char *src);
+printf("String: %s", msg_local.str);
+q_client = mq_open(msg_local.str, O_WRONLY);
+if (q_client == -1){
+
+	printf("%s \n", msg_local.str);
+	
+	//now client is problem!
+perror("Can’t open client queue");
+
+}
+else {
+mq_send(q_client, (char *) &result, sizeof(int), 0);
+mq_close(q_client);
+}
+pthread_exit(0);
+}
+
+
+
+
+
+
+int main(void)
+{
+mqd_t q_server; /* server queue */
+ struct request msg; /* message to receive */
+struct mq_attr q_attr; /* queue atributes */
+pthread_attr_t t_attr; /* thread atributes */
+
+
+q_attr.mq_maxmsg = 20;
+q_attr.mq_msgsize = sizeof( struct request);
+pthread_t thid; //need reference to thread
+
+
+
+//**if error: 
+//then sudo sh -c 'echo 512 > proc/sys/fs/mqueue/msg_max'
+q_server = mq_open("/servert",  O_RDONLY | O_CREAT, 0700 , &q_attr);
+
+if (q_server == -1) {
+	//***
+	printf("server ");
+	
+perror("Can't create server queue");
+return 1;
+}
+printf("GOT IT HERE");
+pthread_mutex_init(&mutex_msg, NULL);
+pthread_cond_init(&cond_msg, NULL);
+pthread_attr_init(&t_attr);
+/* thread atributes */
+pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+
+
+
+//So it makes it here! server queue is working now.
+
+//watch vids on posix queue? maybe i just have to configure client?
+
+//msg.key = 0; 
+//msg.flt = 1.1; 
+//strcpy(msg.str, "hs");
+
+while (1) {
+	
+	
+	//perror("error:");
+	
+	char buffer[ sizeof( struct request) ]
+	//tried everything!! ask him why this is the case.. **** how to properly recieve struct so it blocks and waits for thus?
+ssize_t ret = mq_receive(q_server, (char *)&msg, sizeof(msg), 0); //Fixed reference stuff for message.
+if(ret==-1){
+	printf("MESSAGE SIZE: %ld",sizeof(msg));
+	
+	perror("ERR:");
+
+	}
+pthread_create(&thid, &t_attr, (void *)process_message, &msg);
+//pthread_join(thid,NULL);
+/* wait for thread to copy message */
+pthread_mutex_lock(&mutex_msg);
+while (msg_not_copied){
+pthread_cond_wait(&cond_msg, &mutex_msg);
+msg_not_copied = 1;
+pthread_mutex_unlock(&mutex_msg);
+}
+
+}
+
+}//Main done 
+
+
+
+
+
+
+
+

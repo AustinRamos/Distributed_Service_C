@@ -1,0 +1,169 @@
+
+#include <stdlib.h>
+#include "message.h"
+#include <mqueue.h>
+#include <string.h>
+#include <pthread.h>
+#include <fcntl.h> /* flags */
+#include <sys/stat.h> /* modes */
+#include <stdio.h>
+
+
+//***** look at return and pthreadexit... don;t know what is going on..
+
+
+
+
+/*
+ * cc -c first.c
+
+that would produce an object file you may need to add to the library.
+
+then create an executable using the following command
+
+cc -o first first.c
+ * */
+
+// gcc -g -Wall -pthread -o server server.c -lrt
+
+//globals:
+/* mutex and condition variables for the message copy */
+pthread_mutex_t mutex_msg;
+int msg_not_copied = 1; /* TRUE = 1 */
+pthread_cond_t cond_msg;
+
+//thread function 
+void process_message(struct request *msg){
+	
+	printf("process_message() \n");
+ struct request *msg_local; /* local message */
+ mqd_t q_client; /* client queue */
+int  *result;
+*result = 1;
+/* thread copies message to local message*/
+pthread_mutex_lock(&mutex_msg);
+memcpy((char *) &msg_local, (char *)&msg, sizeof( struct request) );
+/* wake up server */
+msg_not_copied = 0; /* FALSE = 0 */
+pthread_cond_signal(&cond_msg); 
+pthread_mutex_unlock(&mutex_msg);
+
+
+printf("Alternate thread message: %s \n", msg_local->str);
+q_client = mq_open(msg_local->str, O_WRONLY);
+if (q_client == -1){
+
+	printf("%s \n", msg_local->str);
+	
+
+perror("Can’t open client queue");
+
+}
+else {
+
+mq_send(q_client, (char *) &result, sizeof(result), 0);
+printf("\n Response sent \n");
+mq_close(q_client);
+printf("client queue closed \n");
+}
+
+
+pthread_exit(0);
+//return; ->** this gives "stack smashing error"
+}
+
+
+
+
+
+
+int main(void)
+{
+mqd_t q_server; /* server queue */
+ struct request *msg; /* message to receive */
+struct mq_attr q_attr; /* queue atributes */
+pthread_attr_t t_attr; /* thread atributes */
+
+
+q_attr.mq_maxmsg = 20;
+q_attr.mq_msgsize = sizeof( struct request);
+pthread_t thid; //need reference to thread
+
+
+
+//**if error: 
+//then sudo sh -c 'echo 512 > proc/sys/fs/mqueue/msg_max'
+q_server = mq_open("/server",  O_RDONLY | O_CREAT, 0777 , &q_attr);
+
+if (q_server == -1) {
+	//***
+	printf("server ");
+	
+perror("Can't create server queue");
+return 1;
+}
+
+pthread_mutex_init(&mutex_msg, NULL);
+int t = pthread_cond_init(&cond_msg, NULL);
+printf("COND INIT: %d", t);
+pthread_attr_setdetachstate(&t_attr, PTHREAD_CREATE_DETACHED);
+pthread_attr_init(&t_attr);
+
+
+
+
+
+msg = malloc(sizeof(struct request));
+printf("outside while \n");
+while (1) {
+	
+	
+	
+	printf("waiting");
+
+ssize_t ret = mq_receive(q_server, (char *)msg, sizeof(struct request), 0); 
+printf("Recieved! \n");
+
+
+printf("Main thread Message: %s \n", msg->str);
+if(ret==-1){
+	printf("MESSAGE SIZE: %ld",sizeof(&msg));
+	
+	perror("ERR:");
+
+	}
+pthread_create(&thid, &t_attr, (void *)process_message, msg);
+//pthread_join(thid,NULL);
+
+
+
+
+//msg_not_cpied first init to true. set to 0 in process message(), after message is succesfully copied.
+
+/* wait for thread to copy message */
+
+pthread_mutex_lock(&mutex_msg);
+
+while (msg_not_copied){
+printf("before con wait \n");
+ pthread_cond_wait(&cond_msg, &mutex_msg);
+ printf("after con wait \n");
+msg_not_copied = 1;
+
+pthread_mutex_unlock(&mutex_msg);
+
+
+}
+
+
+}
+
+}//Main done 
+
+
+
+
+
+
+
+
